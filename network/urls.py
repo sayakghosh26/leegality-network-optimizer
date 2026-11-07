@@ -10,4 +10,9 @@ urlpatterns = [
         views.shortest_route,
         name="shortest-route"
     ),
+    path(
+        "routes/history/",
+        views.route_history,
+        name="route-history"
+    ),
 ]

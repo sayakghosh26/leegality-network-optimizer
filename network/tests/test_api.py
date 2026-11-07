@@ -6,6 +6,8 @@ from rest_framework.test import APIClient
 from network.models import Node, Edge, RouteHistory
 
 from decimal import Decimal
+from datetime import date, timedelta
+from django.utils import timezone
 
 
 @pytest.mark.django_db
@@ -291,3 +293,152 @@ class TestShortestRouteAPI:
 
         assert history.path == ["ServerA", "ServerB"]
         assert history.total_latency == Decimal("5.000")
+
+
+@pytest.mark.django_db
+class TestRouteHistoryAPI:
+
+    def setup_method(self):
+        self.client = APIClient()
+        self.url = "/api/routes/history/"
+
+        self.history1 = RouteHistory.objects.create(
+            source="ServerA",
+            destination="ServerB",
+            total_latency=5,
+            path=["ServerA", "ServerB"]
+        )
+
+        self.history2 = RouteHistory.objects.create(
+            source="ServerA",
+            destination="ServerC",
+            total_latency=10,
+            path=["ServerA", "ServerC"]
+        )
+
+        self.history3 = RouteHistory.objects.create(
+            source="ServerB",
+            destination="ServerD",
+            total_latency=15,
+            path=["ServerB", "ServerD"]
+        )
+
+    def test_get_all_route_history(self):
+        response = self.client.get(self.url)
+
+        assert response.status_code == 200
+        assert len(response.data) == 3
+
+    def test_filter_by_source(self):
+        response = self.client.get(
+            self.url,
+            {"source": "ServerA"}
+        )
+
+        assert response.status_code == 200
+        assert len(response.data) == 2
+
+        for record in response.data:
+            assert record["source"] == "ServerA"
+
+    def test_filter_by_destination(self):
+        response = self.client.get(
+            self.url,
+            {"destination": "ServerD"}
+        )
+
+        assert response.status_code == 200
+        assert len(response.data) == 1
+        assert response.data[0]["destination"] == "ServerD"
+
+    def test_filter_by_source_and_destination(self):
+        response = self.client.get(
+            self.url,
+            {
+                "source": "ServerA",
+                "destination": "ServerB"
+            }
+        )
+
+        assert response.status_code == 200
+        assert len(response.data) == 1
+
+    def test_limit_route_history(self):
+        response = self.client.get(
+            self.url,
+            {"limit": 2}
+        )
+
+        assert response.status_code == 200
+        assert len(response.data) == 2
+
+    def test_invalid_limit(self):
+        response = self.client.get(
+            self.url,
+            {"limit": "invalid"}
+        )
+
+        assert response.status_code == 400
+
+    def test_zero_limit(self):
+        response = self.client.get(
+            self.url,
+            {"limit": 0}
+        )
+
+        assert response.status_code == 400
+
+    def test_filter_by_date_from(self):
+        yesterday = timezone.now() - timedelta(days=1)
+
+        RouteHistory.objects.filter(
+            id=self.history1.id
+        ).update(created_at=yesterday)
+
+        today = timezone.localdate()
+
+        response = self.client.get(
+            self.url,
+            {"date_from": today.isoformat()}
+        )
+
+        assert response.status_code == 200
+        assert len(response.data) == 2
+
+    def test_filter_by_date_to(self):
+        yesterday = timezone.now() - timedelta(days=1)
+
+        RouteHistory.objects.filter(
+            id=self.history1.id
+        ).update(created_at=yesterday)
+
+        today = timezone.localdate()
+
+        response = self.client.get(
+            self.url,
+            {"date_to": yesterday.date().isoformat()}
+        )
+
+        assert response.status_code == 200
+        assert len(response.data) == 1
+
+    def test_invalid_date_format(self):
+        response = self.client.get(
+            self.url,
+            {"date_from": "not-a-date"}
+        )
+
+        assert response.status_code == 400
+
+    def test_date_from_after_date_to(self):
+        today = date.today()
+
+        response = self.client.get(
+            self.url,
+            {
+                "date_from": (today + timedelta(days=2)).isoformat(),
+                "date_to": today.isoformat()
+            }
+        )
+
+        assert response.status_code == 400

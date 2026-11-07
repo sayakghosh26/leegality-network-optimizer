@@ -1,7 +1,7 @@
 
 from rest_framework import serializers
 
-from network.models import Node, Edge
+from network.models import Node, Edge, RouteHistory
 
 
 class NodeSerializer(serializers.ModelSerializer):
@@ -57,3 +57,17 @@ class ShortestRouteRequestSerializer(serializers.Serializer):
 
     source = serializers.CharField(max_length=100)
     destination = serializers.CharField(max_length=100)
+
+
+class RouteHistorySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = RouteHistory
+        fields = [
+            "id",
+            "source",
+            "destination",
+            "total_latency",
+            "path",
+            "created_at"
+        ]
