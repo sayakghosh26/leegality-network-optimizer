@@ -442,3 +442,42 @@ class TestRouteHistoryAPI:
         )
 
         assert response.status_code == 400
+
+    def test_filter_by_date_range(self):
+        yesterday = timezone.now() - timedelta(days=1)
+        today = timezone.now()
+        tomorrow = timezone.now() + timedelta(days=1)
+
+        RouteHistory.objects.filter(
+            id=self.history1.id
+        ).update(created_at=yesterday)
+
+        RouteHistory.objects.filter(
+            id=self.history2.id
+        ).update(created_at=today)
+
+        RouteHistory.objects.filter(
+            id=self.history3.id
+        ).update(created_at=tomorrow)
+
+        current_date = timezone.localdate().isoformat()
+
+        response = self.client.get(
+            self.url,
+            {
+                "date_from": current_date,
+                "date_to": current_date
+            }
+        )
+
+        assert response.status_code == 200
+        assert len(response.data) == 1
+        assert response.data[0]["id"] == self.history2.id
+
+    def test_empty_route_history(self):
+        RouteHistory.objects.all().delete()
+
+        response = self.client.get(self.url)
+
+        assert response.status_code == 200
+        assert response.data == []
