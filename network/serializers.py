@@ -51,3 +51,9 @@ class EdgeSerializer(serializers.ModelSerializer):
                 )
 
         return data
+
+
+class ShortestRouteRequestSerializer(serializers.Serializer):
+
+    source = serializers.CharField(max_length=100)
+    destination = serializers.CharField(max_length=100)
