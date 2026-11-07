@@ -4,7 +4,7 @@ from rest_framework import status
 from datetime import date
 from django.utils.dateparse import parse_date
 
-from .models import Node, RouteHistory
+from .models import Node, RouteHistory, Edge
 from .serializers import (
     NodeSerializer,
     EdgeSerializer,
@@ -14,40 +14,51 @@ from .serializers import (
 from .services import find_shortest_route
 
 
-@api_view(["POST"])
-def create_node(request):
-    serializer = NodeSerializer(data=request.data)
+@api_view(["GET", "POST"])
+def nodes(request):
+    if request.method == "POST":
+        serializer = NodeSerializer(data=request.data)
 
-    if serializer.is_valid():
-        serializer.save()
-
-        return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED
-        )
-
-    return Response(
-        serializer.errors,
-        status=status.HTTP_400_BAD_REQUEST
-    )
-
-
-@api_view(["POST"])
-def create_edge(request):
-    serializer = EdgeSerializer(data=request.data)
-
-    if serializer.is_valid():
-        serializer.save()
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED
+            )
 
         return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
         )
 
-    return Response(
-        serializer.errors,
-        status=status.HTTP_400_BAD_REQUEST
-    )
+    queryset = Node.objects.all().order_by("id")
+    serializer = NodeSerializer(queryset, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET", "POST"])
+def edges(request):
+    if request.method == "POST":
+        serializer = EdgeSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    queryset = Edge.objects.select_related(
+        "source", "destination"
+    ).order_by("id")
+
+    serializer = EdgeSerializer(queryset, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])

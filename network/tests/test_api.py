@@ -481,3 +481,54 @@ class TestRouteHistoryAPI:
 
         assert response.status_code == 200
         assert response.data == []
+
+
+@pytest.mark.django_db
+class TestNodeListAPI:
+    url = "/api/nodes/"
+
+    def test_get_all_nodes(self):
+        Node.objects.create(name="ServerA")
+        Node.objects.create(name="ServerB")
+
+        response = APIClient().get(self.url)
+
+        assert response.status_code == 200
+        assert len(response.data) == 2
+        assert response.data[0]["name"] == "ServerA"
+        assert response.data[1]["name"] == "ServerB"
+
+    def test_get_nodes_when_empty(self):
+        response = APIClient().get(self.url)
+
+        assert response.status_code == 200
+        assert response.data == []
+
+
+@pytest.mark.django_db
+class TestEdgeListAPI:
+    url = "/api/edges/"
+
+    def test_get_all_edges(self):
+        source = Node.objects.create(name="ServerA")
+        destination = Node.objects.create(name="ServerB")
+
+        Edge.objects.create(
+            source=source,
+            destination=destination,
+            latency=12.5
+        )
+
+        response = APIClient().get(self.url)
+
+        assert response.status_code == 200
+        assert len(response.data) == 1
+        assert response.data[0]["source"] == "ServerA"
+        assert response.data[0]["destination"] == "ServerB"
+        assert float(response.data[0]["latency"]) == 12.5
+
+    def test_get_edges_when_empty(self):
+        response = APIClient().get(self.url)
+
+        assert response.status_code == 200
+        assert response.data == []
