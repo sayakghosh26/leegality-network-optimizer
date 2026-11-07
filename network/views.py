@@ -210,3 +210,33 @@ def route_history(request):
         serializer.data,
         status=status.HTTP_200_OK
     )
+
+
+@api_view(["DELETE"])
+def delete_node(request, node_id):
+    try:
+        node = Node.objects.get(id=node_id)
+    except Node.DoesNotExist:
+        return Response(
+            {"error": "Node not found."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    node.delete()
+
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["DELETE"])
+def delete_edge(request, edge_id):
+    try:
+        edge = Edge.objects.get(id=edge_id)
+    except Edge.DoesNotExist:
+        return Response(
+            {"error": "Edge not found."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    edge.delete()
+
+    return Response(status=status.HTTP_204_NO_CONTENT)

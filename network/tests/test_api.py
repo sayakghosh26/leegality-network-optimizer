@@ -532,3 +532,62 @@ class TestEdgeListAPI:
 
         assert response.status_code == 200
         assert response.data == []
+
+
+@pytest.mark.django_db
+class TestDeleteNodeAPI:
+    def test_delete_node(self):
+        node = Node.objects.create(name="ServerA")
+
+        response = APIClient().delete(f"/api/nodes/{node.id}/")
+
+        assert response.status_code == 204
+        assert not Node.objects.filter(id=node.id).exists()
+
+    def test_delete_node_cascades_edges(self):
+        source = Node.objects.create(name="ServerA")
+        destination = Node.objects.create(name="ServerB")
+
+        edge = Edge.objects.create(
+            source=source,
+            destination=destination,
+            latency=12.5
+        )
+
+        response = APIClient().delete(f"/api/nodes/{source.id}/")
+
+        assert response.status_code == 204
+        assert not Node.objects.filter(id=source.id).exists()
+        assert not Edge.objects.filter(id=edge.id).exists()
+
+    def test_delete_nonexistent_node(self):
+        response = APIClient().delete("/api/nodes/9999/")
+
+        assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestDeleteEdgeAPI:
+    def test_delete_edge(self):
+        source = Node.objects.create(name="ServerA")
+        destination = Node.objects.create(name="ServerB")
+
+        edge = Edge.objects.create(
+            source=source,
+            destination=destination,
+            latency=12.5
+        )
+
+        response = APIClient().delete(f"/api/edges/{edge.id}/")
+
+        assert response.status_code == 204
+        assert not Edge.objects.filter(id=edge.id).exists()
+
+        # Nodes should remain unaffected.
+        assert Node.objects.filter(id=source.id).exists()
+        assert Node.objects.filter(id=destination.id).exists()
+
+    def test_delete_nonexistent_edge(self):
+        response = APIClient().delete("/api/edges/9999/")
+
+        assert response.status_code == 404
