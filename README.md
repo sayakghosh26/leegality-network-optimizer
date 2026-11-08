@@ -4,11 +4,11 @@
 
 This project implements a REST API for managing a network of servers and finding the shortest route between them based on network latency.
 
-The network is represented as a directed weighted graph:
+The network is represented as a directed, weighted graph:
 
-- Nodes represent servers.
-- Edges represent connections between servers.
-- Edge weights represent network latency.
+- **Nodes** represent servers.
+- **Edges** represent connections between servers.
+- **Edge weights** represent network latency.
 
 The application uses Dijkstra's shortest-path algorithm to calculate the route with the minimum total latency between two servers.
 
@@ -26,50 +26,62 @@ The application is built using Python, Django, Django REST Framework, and SQLite
 - Retrieve route history with optional filters.
 - List all nodes and edges.
 - Delete nodes and edges.
+- Automated testing using Pytest and pytest-django.
+- Continuous Integration using GitHub Actions.
 
 ## Technology Stack
 
 | Technology | Purpose |
 |---|---|
-| Python | Programming language |
+| Python 3.13+ | Programming language |
 | Django | Backend web framework |
 | Django REST Framework | REST API development |
 | SQLite | Database |
 | Pytest | Testing framework |
 | pytest-django | Django integration for pytest |
 | Git | Version control |
+| GitHub Actions | Continuous Integration |
 
 ## Design Decisions
 
-### Directed Graph
+### 1. Directed Graph
 
 The network is implemented as a directed graph.
 
-An edge from ServerA to ServerB does not automatically create a connection from ServerB to ServerA.
+An edge from `ServerA` to `ServerB` does not automatically create a connection from `ServerB` to `ServerA`.
 
-### Duplicate Prevention
+Each connection can only be traversed in its defined direction.
 
-Node names must be unique.
+### 2. Duplicate Prevention
 
-A source-destination pair can have only one edge.
+- Node names must be unique.
+- A source-destination pair can have only one edge.
 
-### Positive Latency
+These rules are enforced through serializer validation and database-level constraints.
+
+### 3. Positive Latency
 
 Every edge must have a latency greater than zero.
 
-This is enforced through serializer validation and database-level constraints.
+This is enforced through serializer validation and a database-level check constraint.
 
-### Route History
+Positive latency is also a requirement for the Dijkstra implementation used by this application.
+
+### 4. Route History
 
 Successful shortest-route queries are stored in the database.
 
-Route history stores source and destination names as strings so historical records remain available even if a node is deleted.
+Route history stores source and destination names as strings rather than foreign keys. This ensures historical records remain available even if a node is deleted later.
 
-### Node Deletion
+### 5. Node Deletion
 
-Deleting a node automatically deletes its connected edges through Django's CASCADE relationship.
+Deleting a node automatically deletes its connected edges through Django's `CASCADE` relationship.
 
 Existing route history is preserved.
+
+### 6. Decimal Latency
+
+Latency values are stored using Django's `DecimalField` and calculated using Python's `Decimal` type to avoid common floating-point precision issues.
 
 ## Installation and Setup
 
@@ -105,36 +117,77 @@ For Windows PowerShell:
 ### 4. Install Dependencies
 
 ```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 5. Apply Database Migrations
+### 5. Configure Environment Variables
 
-```bash
+The application requires a Django secret key through an environment variable.
+
+Generate a new secret key:
+
+```powershell
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+Set the generated key in your PowerShell session:
+
+```powershell
+$env:DJANGO_SECRET_KEY="your-generated-secret-key"
+```
+
+Configure debug mode for local development:
+
+```powershell
+$env:DJANGO_DEBUG="true"
+```
+
+Optionally configure allowed hosts:
+
+```powershell
+$env:DJANGO_ALLOWED_HOSTS="localhost,127.0.0.1"
+```
+
+These environment variables apply to the current PowerShell session. If you open a new terminal, configure them again.
+
+**Important:** Do not commit real secret keys to the repository. For production deployments, use a securely generated secret key, set `DJANGO_DEBUG=false`, and configure `DJANGO_ALLOWED_HOSTS` with the actual application hostnames.
+
+### 6. Apply Database Migrations
+
+```powershell
 python manage.py migrate
 ```
 
-### 6. Start the Development Server
+### 7. Start the Development Server
 
-```bash
+```powershell
 python manage.py runserver
 ```
 
 The application will be available at:
 
+```text
 http://127.0.0.1:8000/
+```
 
-### 7. Run the Tests
+API base URL:
 
-```bash
+```text
+http://127.0.0.1:8000/api/
+```
+
+### 8. Run the Tests
+
+```powershell
 pytest -v
 ```
 
-The test suite verifies models, serializers, API endpoints, and shortest-route calculation logic.
+The test suite verifies models, serializers, API endpoints, validation, route-history filtering, and shortest-route calculation logic.
 
 ## API Documentation
 
-Base URL:
+**Base URL:**
 
 ```text
 http://127.0.0.1:8000/api/
@@ -167,13 +220,13 @@ Creates a new node in the network.
 
 **Possible Errors:**
 
-- 400 Bad Request: Missing node name or duplicate node name.
+- `400 Bad Request`: Missing, blank, or duplicate node name.
 
 ### 2. Get All Nodes
 
 **Endpoint:** `GET /api/nodes/`
 
-Returns all nodes in the network.
+Returns all nodes in the network, ordered by ID.
 
 **Successful Response (200 OK):**
 
@@ -221,16 +274,16 @@ Creates a directed connection between two existing nodes.
 
 **Possible Errors:**
 
-- 400 Bad Request: Missing source or destination.
-- 400 Bad Request: Source or destination node does not exist.
-- 400 Bad Request: Latency is zero or negative.
-- 400 Bad Request: Duplicate edge.
+- `400 Bad Request`: Missing source or destination.
+- `400 Bad Request`: Source or destination node does not exist.
+- `400 Bad Request`: Latency is zero or negative.
+- `400 Bad Request`: Duplicate edge.
 
 ### 4. Get All Edges
 
 **Endpoint:** `GET /api/edges/`
 
-Returns all edges in the network.
+Returns all edges in the network, ordered by ID.
 
 **Successful Response (200 OK):**
 
@@ -266,7 +319,7 @@ Calculates the route with the minimum total latency between two nodes using Dijk
 
 ```json
 {
-    "total_latency": "23.400",
+    "total_latency": "17.000",
     "path": [
         "ServerA",
         "ServerB",
@@ -279,11 +332,13 @@ The response above is an illustrative example.
 
 **Possible Errors:**
 
-- 400 Bad Request: Missing or invalid source/destination.
-- 400 Bad Request: Source or destination node does not exist.
-- 404 Not Found: No route exists between the requested nodes.
+- `400 Bad Request`: Missing or invalid source/destination.
+- `400 Bad Request`: Source or destination node does not exist.
+- `404 Not Found`: No route exists between the requested nodes.
 
 Successful route queries are automatically stored in route history.
+
+If the source and destination are the same existing node, the API returns that node as the path with a total latency of zero.
 
 ### 6. Get Route History
 
@@ -295,11 +350,11 @@ Returns previously calculated successful routes.
 
 | Parameter | Description | Example |
 |---|---|---|
-| source | Filter by source node name | `source=ServerA` |
-| destination | Filter by destination node name | `destination=ServerD` |
-| limit | Maximum number of records to return | `limit=10` |
-| date_from | Filter records from this date | `date_from=2026-01-01` |
-| date_to | Filter records up to this date | `date_to=2026-12-31` |
+| `source` | Filter by source node name | `source=ServerA` |
+| `destination` | Filter by destination node name | `destination=ServerD` |
+| `limit` | Maximum number of records to return | `limit=10` |
+| `date_from` | Include records from this date onwards | `date_from=2026-01-01` |
+| `date_to` | Include records up to this date | `date_to=2026-12-31` |
 
 **Example Request:**
 
@@ -315,7 +370,7 @@ GET /api/routes/history/?source=ServerA&destination=ServerD&limit=10
         "id": 1,
         "source": "ServerA",
         "destination": "ServerD",
-        "total_latency": "23.400",
+        "total_latency": "17.000",
         "path": [
             "ServerA",
             "ServerB",
@@ -332,9 +387,9 @@ History records are returned with the newest records first.
 
 **Possible Errors:**
 
-- 400 Bad Request: Invalid date format.
-- 400 Bad Request: Invalid date range.
-- 400 Bad Request: Limit must be a positive integer.
+- `400 Bad Request`: Invalid date format. Expected format is `YYYY-MM-DD`.
+- `400 Bad Request`: `date_from` is later than `date_to`.
+- `400 Bad Request`: Limit must be a positive integer.
 
 ### 7. Delete a Node
 
@@ -342,7 +397,7 @@ History records are returned with the newest records first.
 
 Deletes a node and its connected edges.
 
-**Example:**
+**Example Request:**
 
 ```text
 DELETE /api/nodes/1/
@@ -350,11 +405,13 @@ DELETE /api/nodes/1/
 
 **Successful Response:**
 
-`204 No Content`
+```text
+204 No Content
+```
 
 **Possible Errors:**
 
-- 404 Not Found: Node does not exist.
+- `404 Not Found`: Node does not exist.
 
 Deleting a node does not delete existing route history.
 
@@ -364,7 +421,7 @@ Deleting a node does not delete existing route history.
 
 Deletes a specific edge from the network.
 
-**Example:**
+**Example Request:**
 
 ```text
 DELETE /api/edges/1/
@@ -372,15 +429,17 @@ DELETE /api/edges/1/
 
 **Successful Response:**
 
-`204 No Content`
+```text
+204 No Content
+```
 
 **Possible Errors:**
 
-- 404 Not Found: Edge does not exist.
+- `404 Not Found`: Edge does not exist.
 
 ## Algorithm: Dijkstra's Shortest Path
 
-The application uses Dijkstra's algorithm to find the route with the minimum total latency between two nodes in a directed weighted graph.
+The application uses Dijkstra's algorithm to find the route with the minimum total latency between two nodes in a directed, weighted graph.
 
 ### How It Works
 
@@ -439,5 +498,23 @@ Let:
 - Dijkstra's algorithm works with non-negative edge weights.
 - This application enforces strictly positive edge latencies.
 - The graph is directed, so connections are traversed only in their defined direction.
-- If no route exists, the API returns a 404 response.
-- If the source and destination are the same node, the route contains that node and the total latency is zero.
+- If no route exists, the API returns a `404 Not Found` response.
+- If the source and destination are the same existing node, the route contains that node and the total latency is zero.
+
+## Continuous Integration
+
+The project uses GitHub Actions to automatically run the test suite.
+
+The workflow is triggered when code is pushed to the `main` branch or when a pull request targets `main`.
+
+The workflow performs the following steps:
+
+1. Checks out the repository.
+2. Sets up Python 3.13.
+3. Installs project dependencies from `requirements.txt`.
+4. Applies database migrations.
+5. Runs the automated tests using Pytest.
+
+The CI workflow uses a test-only Django secret key and does not require a production secret.
+
+This helps ensure that changes do not break existing functionality.
